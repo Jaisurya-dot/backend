@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 # Load .env from current directory or parent directory
 load_dotenv()
 if not os.getenv("DATABASE_URL"):
-    load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+    load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL)
