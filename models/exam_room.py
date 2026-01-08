@@ -23,3 +23,4 @@ class ExamRoom(Base):
     # Relationships
     creator = relationship("User", foreign_keys=[created_by])
     questions = relationship("Question", back_populates="exam_room", cascade="all, delete-orphan")
+    submissions = relationship("Submission", back_populates="exam_room", cascade="all, delete-orphan")

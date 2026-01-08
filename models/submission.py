@@ -27,11 +27,12 @@ class Submission(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    exam_room = relationship("ExamRoom")
+    exam_room = relationship("ExamRoom", back_populates="submissions")
     student = relationship("User")
     answers = relationship("Answer", back_populates="submission", cascade="all, delete-orphan")
     
     
+
 
 class Answer(Base):
     __tablename__ = "answers"

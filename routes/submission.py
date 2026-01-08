@@ -99,9 +99,69 @@ def start_submission(
     return SubmissionStartResponse(
         submission_id=db_submission.id,
         exam_room_id=exam_room.id,
+        exam_room_title=exam_room.title,
         duration_minutes=exam_room.duration_minutes,
         questions=formatted_questions
     )
+
+@router.get("/my-history", response_model=List[SubmissionHistoryResponse])
+def get_my_submission_history(
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    submissions = db.query(Submission).filter(
+        Submission.student_id == current_user.id
+    ).order_by(Submission.started_at.desc()).offset(skip).limit(limit).all()
+    
+    # Format with exam room titles
+    history = []
+    for submission in submissions:
+        exam_room = db.query(ExamRoom).filter(ExamRoom.id == submission.exam_room_id).first()
+        history.append(SubmissionHistoryResponse(
+            id=submission.id,
+            exam_room_id=submission.exam_room_id,
+            exam_room_title=exam_room.title if exam_room else "Unknown",
+            total_score=submission.total_score,
+            status=submission.status.value,
+            started_at=submission.started_at,
+            submitted_at=submission.submitted_at,
+            time_taken_seconds=submission.time_taken_seconds
+        ))
+    
+    return history
+
+@router.get("/stats/overall")
+def get_overall_stats(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != "ADMIN":
+        raise HTTPException(status_code=403, detail="Admin only")
+        
+    total_users = db.query(User).count()
+    total_exams = db.query(ExamRoom).count()
+    total_submissions = db.query(Submission).count()
+    
+    # Growth over last 7 days
+    seven_days_ago = datetime.utcnow() - timedelta(days=7)
+    submissions_over_time = []
+    for i in range(7):
+        day = seven_days_ago + timedelta(days=i)
+        next_day = day + timedelta(days=1)
+        count = db.query(Submission).filter(
+            Submission.submitted_at >= day,
+            Submission.submitted_at < next_day
+        ).count()
+        submissions_over_time.append({"date": day.strftime("%Y-%m-%d"), "count": count})
+        
+    return {
+        "total_users": total_users,
+        "total_exams": total_exams,
+        "total_submissions": total_submissions,
+        "submissions_over_time": submissions_over_time
+    }
 
 @router.get("/{submission_id}", response_model=SubmissionResponse)
 def get_submission(
@@ -290,33 +350,6 @@ def submit_submission(
         answers=answer_results
     )
 
-@router.get("/my-history", response_model=List[SubmissionHistoryResponse])
-def get_my_submission_history(
-    skip: int = 0,
-    limit: int = 100,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    submissions = db.query(Submission).filter(
-        Submission.student_id == current_user.id
-    ).order_by(Submission.started_at.desc()).offset(skip).limit(limit).all()
-    
-    # Format with exam room titles
-    history = []
-    for submission in submissions:
-        exam_room = db.query(ExamRoom).filter(ExamRoom.id == submission.exam_room_id).first()
-        history.append(SubmissionHistoryResponse(
-            id=submission.id,
-            exam_room_id=submission.exam_room_id,
-            exam_room_title=exam_room.title if exam_room else "Unknown",
-            total_score=submission.total_score,
-            status=submission.status.value,
-            started_at=submission.started_at,
-            submitted_at=submission.submitted_at,
-            time_taken_seconds=submission.time_taken_seconds
-        ))
-    
-    return history
 
 @router.get("/exam-room/{exam_room_id}/submissions", response_model=List[SubmissionHistoryResponse])
 def get_exam_room_submissions(
@@ -360,3 +393,27 @@ def get_exam_room_submissions(
         ))
     
     return history
+
+@router.get("/stats/user/{user_id}")
+def get_user_stats(
+    user_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != "ADMIN" and current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    submissions = db.query(Submission).filter(Submission.student_id == user_id).all()
+    
+    performance_over_time = []
+    for sub in submissions:
+        if sub.status == SubmissionStatus.SUBMITTED:
+            performance_over_time.append({
+                "date": sub.submitted_at.strftime("%Y-%m-%d"),
+                "score": sub.total_score
+            })
+            
+    return {
+        "submissions_count": len(submissions),
+        "performance_over_time": performance_over_time
+    }

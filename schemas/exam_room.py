@@ -5,11 +5,11 @@ from typing import Optional, List
 class ExamRoomBase(BaseModel):
     title: str = Field(..., max_length=255)
     description: Optional[str] = Field(None, max_length=1000)
-    start_time: datetime
-    end_time: datetime
-    duration_minutes: int = Field(..., ge=1, le=300)  # 1-300 minutes
-    total_marks: int = Field(..., ge=0)
-    is_published: bool = False
+    start_time: datetime = Field(default_factory=datetime.now)
+    end_time: datetime = Field(default_factory=datetime.now)
+    duration_minutes: int = Field(30, ge=1, le=300)
+    total_marks: int = Field(0, ge=0)
+    is_published: bool = Field(False)
 
 class ExamRoomCreate(ExamRoomBase):
     pass

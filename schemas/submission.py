@@ -47,6 +47,7 @@ class SubmissionResponse(SubmissionBase):
 class SubmissionStartResponse(BaseModel):
     submission_id: int
     exam_room_id: int
+    exam_room_title: str
     duration_minutes: int
     questions: List[dict]
 

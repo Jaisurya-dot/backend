@@ -13,34 +13,17 @@ from core.auth import get_current_active_user, require_admin
 
 router = APIRouter(prefix="/questions", tags=["questions"])
 
-@router.post("/", response_model=QuestionResponse)
-def create_question(
-    question: QuestionCreate,
+@router.post("/exam-room/{exam_room_id}", response_model=QuestionResponse)
+def create_question_nested(
     exam_room_id: int,
+    question: QuestionCreate,
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    # Check if exam room exists and user has permission
+    # Check if exam room exists
     exam_room = db.query(ExamRoom).filter(ExamRoom.id == exam_room_id).first()
     if not exam_room:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Exam room not found"
-        )
-    
-    if exam_room.created_by != current_user.id and current_user.role != "ADMIN":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the creator or admin can add questions"
-        )
-    
-    # Validate at least one correct option
-    correct_options = [opt for opt in question.options if opt.is_correct]
-    if not correct_options:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one option must be correct"
-        )
+        raise HTTPException(status_code=404, detail="Exam room not found")
     
     # Create question
     db_question = Question(
@@ -54,11 +37,11 @@ def create_question(
     db.refresh(db_question)
     
     # Create options
-    for option_data in question.options:
+    for opt in question.options:
         db_option = Option(
             question_id=db_question.id,
-            option_text=option_data.option_text,
-            is_correct=option_data.is_correct
+            option_text=opt.option_text,
+            is_correct=opt.is_correct
         )
         db.add(db_option)
     
@@ -198,10 +181,10 @@ def create_option(
     
     # Check if question already has max options
     current_options = db.query(Option).filter(Option.question_id == question_id).count()
-    if current_options >= 6:
+    if current_options >= 10:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Maximum 6 options allowed per question"
+            detail="Maximum 10 options allowed per question"
         )
     
     db_option = Option(

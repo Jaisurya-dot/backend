@@ -61,8 +61,8 @@ def login(user_credentials: LoginRequest, db: Session = Depends(get_db)):
         "token_type": "bearer"
     }
 
-@router.post("/login-form", response_model=Token)
-def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@router.post("/token", response_model=Token)
+def login_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == form_data.username).first()
     
     if not user or not verify_password(form_data.password, user.password_hash):
@@ -82,3 +82,8 @@ def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
         "access_token": access_token,
         "token_type": "bearer"
     }
+
+from core.auth import get_current_user
+@router.get("/me", response_model=UserResponse)
+def read_users_me(current_user: User = Depends(get_current_user)):
+    return current_user

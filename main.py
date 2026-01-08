@@ -1,63 +1,83 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from db.db_config import engine, Base
-from models import user, exam_room, question, submission
-from routes import auth, user, exam_room, question, submission
-from middleware import LoggingMiddleware, ErrorHandlingMiddleware
-from exceptions import QuizException
+from datetime import datetime
+import os
 
+# Import database configuration
+from db.db_config import engine, Base
+
+# Import models to ensure they are registered with Base
+from models.user import User
+from models.exam_room import ExamRoom
+from models.question import Question, Option
+from models.submission import Submission, Answer
+
+# Import routers
+from routes.auth import router as auth_router
+from routes.user import router as user_router
+from routes.exam_room import router as exam_room_router
+from routes.question import router as question_router
+from routes.submission import router as submission_router
+
+from middleware import LoggingMiddleware, ErrorHandlingMiddleware
+
+# Load environment variables
 load_dotenv()
 
+# Create database tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Quiz Backend - PostgreSQL",
-    description="A comprehensive quiz management system with user authentication, exam rooms, questions, and submissions",
+    title="Quiz Master API",
+    description="API for Quiz Management System",
     version="1.0.0"
 )
 
-# Add CORS middleware
+# CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Add custom middleware
+# Custom Middleware
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(ErrorHandlingMiddleware)
 
-# Include all routers
-app.include_router(auth.router)
-app.include_router(user.router)
-app.include_router(exam_room.router)
-app.include_router(question.router)
-app.include_router(submission.router)
-
-# Exception handler for custom exceptions
-@app.exception_handler(QuizException)
-async def quiz_exception_handler(request, exc: QuizException):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "detail": exc.message,
-            "details": exc.details
-        }
-    )
-
-@app.get("/")
-def Get():
-    return {
-        "message": "Quiz Backend API",
-        "version": "1.0.0",
-        "docs": "/docs",
-        "redoc": "/redoc"
-    }
+# Include Routers
+app.include_router(auth_router)
+app.include_router(user_router)
+app.include_router(exam_room_router)
+app.include_router(question_router)
+app.include_router(submission_router)
 
 @app.get("/health")
-def health_check():
-    return {"status": "healthy"}
+async def health_check():
+    return {"status": "healthy", "database": "connected"}
+
+from fastapi.exceptions import RequestValidationError
+import logging
+
+logger = logging.getLogger("uvicorn")
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    # Log to a file we can definitely read
+    with open("C:/Users/JaisuryaSelvam/Desktop/MY_TECH/Full_Stack/backend/validation_errors.log", "a") as f:
+        f.write(f"--- 422 Error at {datetime.now()} ---\n")
+        f.write(f"URL: {request.url}\n")
+        f.write(f"Errors: {str(errors)}\n\n")
+    
+    return JSONResponse(
+        status_code=422,
+        content={"detail": errors},
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
